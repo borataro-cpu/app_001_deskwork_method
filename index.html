@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<!-- デフォルトでダークモード（class="dark"）を適用 -->
+<html lang="ja" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>デスクワークお腹へこませタイマー</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Tailwind CSS でクラスベースのダークモードを有効化する設定
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        /* SVG 円形タイマーの進捗アニメーション用 */
+        .timer-ring-circle {
+            transition: stroke-dashoffset 0.1s linear;
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        /* スクロールバーの非表示（モバイルライクなUIのため） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex items-center justify-center p-4 pb-20 md:pb-4">
+
+    <!-- メインコンテナ -->
+    <div class="w-full max-w-md bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden relative flex flex-col min-h-[620px]">
+        
+        <!-- ヘッダー -->
+        <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-slate-50 dark:border-slate-700 shrink-0">
+            <div class="flex items-center gap-2">
+                <div class="p-2 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                    <i data-lucide="activity" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-slate-800 dark:text-white leading-tight">お腹凹ませタイマー</h1>
+                    <p class="text-xs text-slate-400 dark:text-slate-500">デスク座り姿勢フィットネス</p>
+                </div>
+            </div>
+            <!-- ライト/ダークテーマ切り替え -->
+            <button id="themeToggle" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 transition-colors" title="テーマ切り替え">
+                <i data-lucide="sun" class="w-5 h-5 dark:hidden"></i>
+                <i data-lucide="moon" class="w-5 h-5 hidden dark:block"></i>
+            </button>
+        </div>
+
+        <!-- 全体の進行状況バー（タイマー動作時のみ表示・変化） -->
+        <div class="h-1 w-full bg-slate-100 dark:bg-slate-700 shrink-0">
+            <div id="overallProgress" class="h-full bg-gradient-to-r from-emerald-400 to-teal-500 w-0 transition-all duration-300"></div>
+        </div>
+
+        <!-- ==================== 1. タイマー画面 ==================== -->
+        <div id="timerScreen" class="p-6 flex-1 flex flex-col justify-between">
+            <div>
+                <!-- ステップ番号とプログラム名 -->
+                <div class="text-center mb-2">
+                    <span id="currentProgramName" class="text-xs font-semibold tracking-wider uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 rounded-full">
+                        基本の95秒メソッド
+                    </span>
+                </div>
+                <div class="text-center mb-4">
+                    <p id="stepCounter" class="text-sm font-medium text-slate-400 dark:text-slate-500">ステップ 1 / 4</p>
+                    <div id="stepInstruction" class="min-h-[110px] flex items-center justify-center px-2 text-center">
+                        <h2 class="text-xl font-bold text-slate-700 dark:text-slate-200 leading-snug">
+                            背筋を伸ばし、お腹をへこませてキープ！
+                        </h2>
+                    </div>
+                </div>
+
+                <!-- ビジュアルタイマー -->
+                <div class="relative w-52 h-52 mx-auto my-4 flex items-center justify-center">
+                    <svg class="w-full h-full transform -rotate-90">
+                        <circle cx="104" cy="104" r="88" stroke-width="10" stroke="currentColor" fill="transparent" class="text-slate-100 dark:text-slate-700" />
+                        <circle id="timerRing" cx="104" cy="104" r="88" stroke-width="10" stroke="url(#emeraldGradient)" fill="transparent" class="timer-ring-circle" stroke-dasharray="552.9" stroke-dashoffset="0" stroke-linecap="round" />
+                        <defs>
+                            <linearGradient id="emeraldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop id="gradientStart" offset="0%" stop-color="#34d399" />
+                                <stop id="gradientEnd" offset="100%" stop-color="#0d9488" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <!-- タイマーテキスト -->
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <!-- 準備中バッジ -->
+                        <span id="prepBadge" class="hidden text-sm font-extrabold tracking-widest text-amber-500 bg-amber-50 dark:bg-amber-950/50 px-3.5 py-1 rounded-full animate-pulse mb-1">READY</span>
+                        <span id="timeLeft" class="text-5xl font-extrabold tracking-tight text-slate-800 dark:text-white tabular-nums">30</span>
+                        <span id="timerUnit" class="text-xs font-semibold tracking-wider text-slate-400 uppercase mt-1">SECONDS</span>
+                    </div>
+                </div>
+
+                <!-- アシストヒント -->
+                <div class="bg-slate-50 dark:bg-slate-700/50 rounded-2xl p-4 mb-6 border border-slate-100 dark:border-slate-700/80 min-h-[76px] flex items-start gap-3">
+                    <div id="tipIconContainer" class="text-emerald-500 dark:text-emerald-400 mt-0.5 shrink-0">
+                        <i id="tipIcon" data-lucide="lightbulb" class="w-5 h-5"></i>
+                    </div>
+                    <div class="flex-1">
+                        <p id="tipHeader" class="text-xs font-bold text-slate-500 dark:text-slate-300">ポイント・コツ</p>
+                        <p id="stepTip" class="text-xs text-slate-400 dark:text-slate-400 mt-0.5 leading-relaxed">
+                            呼吸は止めずに自然に行いましょう。おへそを背中に近づけるイメージです。
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- コントロールボタン & ミニステータス -->
+            <div>
+                <div class="flex items-center justify-center gap-4 mb-4">
+                    <button id="btnReset" class="p-4 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-105" title="最初からやり直す">
+                        <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+                    </button>
+                    <button id="btnPlayPause" class="w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-emerald-500/20 dark:shadow-emerald-950/40 transition-all transform hover:scale-105">
+                        <i id="playIcon" data-lucide="play" class="w-10 h-10 fill-current"></i>
+                    </button>
+                    <button id="btnSkip" class="p-4 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-2xl text-slate-500 dark:text-slate-400 transition-all hover:scale-105" title="次のステップへ">
+                        <i data-lucide="skip-forward" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between text-xs border-t border-slate-100 dark:border-slate-700/80 pt-4 px-2">
+                    <div class="flex items-center gap-1 text-slate-400">
+                        <i data-lucide="flame" class="w-4 h-4 text-orange-500 animate-pulse"></i>
+                        <span>今日: <span id="doneCount" class="font-bold text-slate-700 dark:text-slate-200">0</span>回 (<span id="totalCalories" class="font-bold text-slate-700 dark:text-slate-200">0.0</span> kcal)</span>
+                    </div>
+                    <div class="flex items-center gap-1 text-slate-400">
+                        <i data-lucide="calendar" class="w-4 h-4 text-blue-500"></i>
+                        <span>今週累計: <span id="weekCaloriesMini" class="font-bold text-slate-700 dark:text-slate-200">0.0</span> kcal</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 2. 履歴・統計画面 ==================== -->
+        <div id="historyScreen" class="p-6 flex-1 flex flex-col justify-between hidden overflow-y-auto no-scrollbar">
+            <div class="space-y-6">
+                <!-- ヘッダータイトル -->
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5 text-emerald-500"></i>
+                        運動履歴と統計
+                    </h3>
+                    <button id="btnClearHistory" class="text-xs font-semibold text-rose-500 hover:text-rose-600">全クリア</button>
+                </div>
+
+                <!-- 統計カード -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50 rounded-2xl p-4 text-center">
+                        <p class="text-xs text-slate-400 dark:text-slate-400 font-semibold mb-1">今週の消費</p>
+                        <p class="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400"><span id="weekCalories">0.0</span> <span class="text-xs font-bold">kcal</span></p>
+                    </div>
+                    <div class="bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/50 rounded-2xl p-4 text-center">
+                        <p class="text-xs text-slate-400 dark:text-slate-400 font-semibold mb-1">今月の消費</p>
+                        <p class="text-2xl font-extrabold text-blue-600 dark:text-blue-400"><span id="monthCalories">0.0</span> <span class="text-xs font-bold">kcal</span></p>
+                    </div>
+                </div>
+
+                <!-- 週別縦棒グラフ -->
+                <div class="bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700/80 rounded-2xl p-4">
+                    <h4 class="text-xs font-bold text-slate-400 dark:text-slate-300 mb-4 flex items-center gap-1">
+                        <i data-lucide="calendar-range" class="w-4 h-4 text-emerald-500"></i>
+                        直近7日間の消費カロリー (kcal)
+                    </h4>
+                    <!-- 棒グラフ本体 -->
+                    <div class="flex items-end justify-between h-32 px-2 pt-2 relative">
+                        <!-- グリッド線 -->
+                        <div class="absolute inset-x-0 top-0 border-b border-dashed border-slate-200 dark:border-slate-700 h-0"></div>
+                        <div class="absolute inset-x-0 top-1/2 border-b border-dashed border-slate-200 dark:border-slate-700 h-0"></div>
+                        
+                        <!-- 棒1本1本のコンテナ -->
+                        <div id="chartContainer" class="flex items-end justify-between w-full h-full z-10">
+                            <!-- JSで挿入 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- タイムラインリスト -->
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold text-slate-400 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="list" class="w-4 h-4 text-emerald-500"></i>
+                        過去のトレーニングログ
+                    </h4>
+                    <div id="historyList" class="space-y-2 max-h-48 overflow-y-auto no-scrollbar pr-1">
+                        <!-- 履歴項目がJSで追加されます -->
+                        <p class="text-xs text-slate-400 dark:text-slate-500 text-center py-4">運動履歴がまだありません。まずはタイマーをスタートしましょう！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 3. 設定画面 ==================== -->
+        <div id="configScreen" class="p-6 flex-1 flex flex-col justify-between hidden overflow-y-auto no-scrollbar">
+            <div class="space-y-5">
+                <h3 class="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-700 pb-2">
+                    <i data-lucide="settings-2" class="w-5 h-5 text-emerald-500"></i>
+                    プログラム・タイマー設定
+                </h3>
+
+                <!-- プログラムリスト -->
+                <div class="space-y-2">
+                    <h4 class="font-bold text-xs text-slate-400 dark:text-slate-300">プログラムの選択</h4>
+                    <button class="program-select-btn w-full p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-left transition-all" data-program="basic">
+                        <div class="flex justify-between items-center mb-0.5">
+                            <span class="font-bold text-sm text-slate-800 dark:text-white">A. 基本の95秒メソッド</span>
+                            <span class="text-xs px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-400 rounded-md font-semibold">1分35秒</span>
+                        </div>
+                        <p class="text-xs text-slate-400 dark:text-slate-400">お腹凹ませ＋お尻締めの同時アプローチ。右足・左足を個別に上げ、最後に左右交互に計10回ゆっくりひねる基本構成。</p>
+                    </button>
+
+                    <button class="program-select-btn w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-left transition-all hover:bg-slate-50 dark:hover:bg-slate-700" data-program="lowerAb">
+                        <div class="flex justify-between items-center mb-0.5">
+                            <span class="font-bold text-sm text-slate-800 dark:text-white">B. 下腹集中60秒アタック</span>
+                            <span class="text-xs px-2 py-0.5 bg-sky-100 dark:bg-sky-950 text-sky-600 dark:text-sky-400 rounded-md font-semibold">1分00秒</span>
+                        </div>
+                        <p class="text-xs text-slate-400 dark:text-slate-400">ぽっこり下腹部をターゲットに。両膝をピタッと揃え、浮かせたまま15秒キープする高負荷ステップです。</p>
+                    </button>
+
+                    <button class="program-select-btn w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-left transition-all hover:bg-slate-50 dark:hover:bg-slate-700" data-program="pelvic">
+                        <div class="flex justify-between items-center mb-0.5">
+                            <span class="font-bold text-sm text-slate-800 dark:text-white">C. 骨盤・内もも60秒ケア</span>
+                            <span class="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400 rounded-md font-semibold">1分00秒</span>
+                        </div>
+                        <p class="text-xs text-slate-400 dark:text-slate-400">タオルを膝に挟み内ももを鍛え、同時にお尻締め。最後に骨盤を前後にコロコロ動かして調整します。</p>
+                    </button>
+                </div>
+
+                <!-- 準備時間（インターバル）設定 -->
+                <div class="border-t border-slate-100 dark:border-slate-700/80 pt-4 space-y-1">
+                    <h4 class="font-bold text-xs text-slate-400 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="timer" class="w-4 h-4 text-emerald-500"></i>
+                        準備時間（インターバル）の設定
+                    </h4>
+                    <p class="text-[10px] text-slate-400">
+                        次の運動に移る前の猶予時間。「OFF」にすると準備なしで自動移行します。
+                    </p>
+                    <div class="grid grid-cols-6 gap-1.5 mt-2">
+                        <button class="prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" data-prep="0">OFF</button>
+                        <button class="prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" data-prep="1">1秒</button>
+                        <button class="prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" data-prep="2">2秒</button>
+                        <button class="prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" data-prep="3">3秒</button>
+                        <button class="prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all" data-prep="4">4秒</button>
+                        <button class="prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 transition-all font-bold" data-prep="5">5秒</button>
+                    </div>
+                </div>
+
+                <!-- 体重設定項目 -->
+                <div class="border-t border-slate-100 dark:border-slate-700/80 pt-4 space-y-1">
+                    <h4 class="font-bold text-xs text-slate-400 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="user" class="w-4 h-4 text-emerald-500"></i>
+                        体重設定 (正確な消費カロリー計算用)
+                    </h4>
+                    <p class="text-[10px] text-slate-400">
+                        現在の体重を設定してください。プログラム完了時にカロリーが自動計算されます。
+                    </p>
+                    <div class="flex items-center gap-3 mt-2">
+                        <input id="userWeight" type="number" value="60" min="20" max="200" class="w-24 px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl font-bold text-center text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                        <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">kg</span>
+                    </div>
+                </div>
+
+                <!-- 定期リマインダー設定 -->
+                <div class="border-t border-slate-100 dark:border-slate-700/80 pt-4 space-y-2">
+                    <h4 class="font-bold text-xs text-slate-400 dark:text-slate-300">
+                        <i data-lucide="bell" class="w-4 h-4 inline-block mr-1 text-amber-500"></i>
+                        デスクワーク用リマインダー
+                    </h4>
+                    <p class="text-[10px] text-slate-400 leading-normal">
+                        ブラウザを開いている間、一定時間ごとにお知らせトーストでお腹凹ませ時間を促します。
+                    </p>
+                    <div class="grid grid-cols-4 gap-2 mt-2">
+                        <button class="reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700" data-interval="0">OFF</button>
+                        <button class="reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700" data-interval="30">30分</button>
+                        <button class="reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400" data-interval="60">1時間</button>
+                        <button class="reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700" data-interval="120">2時間</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== 4. フッタータブナビゲーション ==================== -->
+        <div class="border-t border-slate-100 dark:border-slate-700 shrink-0 h-16 bg-white dark:bg-slate-800 flex items-center justify-around px-6">
+            <button id="tabTimer" class="flex flex-col items-center justify-center text-emerald-500 dark:text-emerald-400 w-12 h-12 transition-all">
+                <i data-lucide="timer" class="w-6 h-6"></i>
+                <span class="text-[10px] font-bold mt-0.5">タイマー</span>
+            </button>
+            <button id="tabHistory" class="flex flex-col items-center justify-center text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 w-12 h-12 transition-all">
+                <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                <span class="text-[10px] font-medium mt-0.5">履歴・統計</span>
+            </button>
+            <button id="tabSettings" class="flex flex-col items-center justify-center text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 w-12 h-12 transition-all">
+                <i data-lucide="settings" class="w-6 h-6"></i>
+                <span class="text-[10px] font-medium mt-0.5">設定</span>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- 初回起動用：体重入力ウェルカムモーダル -->
+    <div id="welcomeModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4 transition-all duration-300">
+        <div class="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm border border-slate-100 dark:border-slate-700 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <i data-lucide="sparkles" class="w-8 h-8 animate-pulse"></i>
+            </div>
+            <h2 class="text-xl font-bold text-slate-800 dark:text-white mb-2">ようこそ！お腹凹ませタイマーへ</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+                あなたの現在の体重に合わせて、毎トレーニング時の推定消費カロリーを自動計算します。まずは現在の体重を入力してみましょう！
+            </p>
+            <div class="flex items-center justify-center gap-3 mb-6 bg-slate-50 dark:bg-slate-700/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700/50">
+                <input id="initWeightInput" type="number" value="60" min="20" max="200" class="w-24 px-3 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl font-bold text-center text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-lg" />
+                <span class="text-sm font-bold text-slate-500 dark:text-slate-400">kg</span>
+            </div>
+            <div id="btnSaveInitWeight" class="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex items-center justify-center">
+                設定を保存してスタート！
+            </div>
+        </div>
+    </div>
+
+    <!-- リマインダー通知用トーストメッセージ -->
+    <div id="toastNotification" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-slate-900/95 text-white px-6 py-4 rounded-2xl shadow-xl z-50 flex items-center gap-3 w-[90%] max-w-sm border border-slate-800 transition-all duration-300 opacity-0 pointer-events-none translate-y-[-20px]">
+        <div class="p-2 bg-emerald-500 rounded-xl text-white shrink-0">
+            <i data-lucide="bell-ring" class="w-5 h-5"></i>
+        </div>
+        <div class="flex-1">
+            <p class="text-sm font-bold">お腹を凹ませる時間です！</p>
+            <p class="text-xs text-slate-400">背筋を伸ばしてお腹すっきりケアしましょう！</p>
+        </div>
+        <button id="toastCloseBtn" class="text-slate-400 hover:text-white transition-colors">
+            <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+    </div>
+
+    <script>
+        // --- データの定義 ---
+        const programs = {
+            basic: {
+                name: "基本の95秒メソッド",
+                steps: [
+                    { name: "姿勢チェック", title: "背筋を伸ばす", text: "骨盤を立てて座り、背筋をスッと伸ばして顎を少し引きます。", duration: 5, tip: "お腹をへこませる前に、まずは美しい姿勢のベースを作ります。" },
+                    { name: "ステップ 1/4", title: "お腹凹ませ ＋ お尻締め", text: "ゆっくり息を吐きながらお腹を限界まで凹ませ、同時にお尻の穴をキュッと上に引き上げます！", duration: 30, tip: "お腹の深層筋（腹横筋）とお尻の奥（骨盤底筋群）を同時に締めることで、天然のコルセット効果が生まれて効果が何倍にもアップします！" },
+                    { name: "ステップ 2/4", title: "右足を浮かせる", text: "姿勢とお腹の力をキープしたまま、右の太ももを床から少し浮かせます。", duration: 15, tip: "足の付け根の深層筋（腸腰筋）が鍛えられ、ぽっこり下腹部の引き締めに絶大な効果があります。" },
+                    { name: "ステップ 3/4", title: "左足を浮かせる", text: "同様に, 姿勢とお腹の力を保ったまま、左の太ももを床から少し浮かせます。", duration: 15, tip: "上体が左右に傾かないように、お腹のインナーマッスルでバランスを保つのがポイントです。" },
+                    { name: "ステップ 4/4", title: "上半身をひねる", text: "背すじを伸ばしたまま、上半身を右・左と交互にゆっくり5回ずつ（合計10回）ひねります。", duration: 30, tip: "息をふーっと吐きながら深くひねることで、脇腹の「くびれ筋（腹斜筋）」を最大限に刺激します。1往復を約6秒かけて深くじっくりひねりましょう。" }
+                ]
+            },
+            lowerAb: {
+                name: "下腹集中60秒アタック",
+                steps: [
+                    { name: "姿勢チェック", title: "浅めに座って背筋を伸ばす", text: "椅子に少し浅めに腰掛け、骨盤を真っ直ぐに立てて軸を整えます。", duration: 5, tip: "背もたれから背中をしっかりと離し、体幹で支えます。" },
+                    { name: "ステップ 1/3", title: "お腹凹ませキープ", text: "お腹を極限まで薄くするようにゆっくり息を吐いてへこませ続けます。", duration: 25, tip: "特におへその下の部分を引き込む意識を強く持ち、インナーマッスルをオンにします。" },
+                    { name: "ステップ 2/3", title: "両足を浮かせてキープ", text: "両膝をピタッと揃えたまま、足裏を床から5〜10cmほど浮かせます！そのままお腹の力だけで耐えて！", duration: 15, tip: "上体が後ろに倒れないように机に軽く手を置き、下腹の力だけで支えるのが最大のコツです。" },
+                    { name: "ステップ 3/3", title: "膝の引き寄せスロームーブ", text: "浮かせた膝を、さらに胸に近づけるようにゆっくり引き寄せて戻す動きを繰り返します。", duration: 15, tip: "お腹の奥が痛くなるような収縮感があれば効いている証拠です。ラストスパート！" }
+                ]
+            },
+            pelvic: {
+                name: "骨盤・内もも60秒ケア",
+                steps: [
+                    { name: "準備姿勢", title: "膝の間に物を挟む", text: "丸めたタオルやクッション（なければ手帳など）を膝の間にしっかり挟みます。", duration: 5, tip: "挟むものがない場合は、自分の拳（こぶし）を膝の間に押し合ってもOKです。" },
+                    { name: "ステップ 1/3", title: "内ももタオル挟み ＋ お腹凹ませ", text: "膝を内側に押し潰すように強く力を入れながら、同時にお腹をへこませます。", duration: 20, tip: "内も目の筋肉（内転筋）とお腹の深層筋は連動しているため、内側からお腹を引き締める近道になります。" },
+                    { name: "ステップ 2/3", title: "お尻締め（骨盤底筋群）", text: "内ももを締めたまま、お尻の穴を上へキュッと引き上げるように強く力を入れ続けます。", duration: 20, tip: "骨盤の底から全体を支える筋肉が鍛えられ、下腹ぽっこりの解消や姿勢維持が劇的に楽になります。" },
+                    { name: "ステップ 3/3", title: "骨盤コロコロ（リセット）", text: "おへそを覗き込んで骨盤を後ろに倒し（丸める）、次に胸を張って骨盤を前に起こす動きを繰り返します。", duration: 15, tip: "呼吸は止めずに。座りっぱなしで凝り固まった腰回りをほぐし、正しい骨盤位置を記憶させます。" }
+                ]
+            }
+        };
+
+        // --- 状態変数 ---
+        let currentProgramKey = 'basic';
+        let currentStepIndex = 0;
+        let timeLeft = 0;
+        let timerIntervalId = null;
+        let isRunning = false;
+        
+        // --- 設定値（LocalStorageで記憶されるもの） ---
+        let isSoundEnabled = true;
+        let PREP_DURATION = 5;
+        let userWeight = 60;
+        let activeReminderInterval = 60;
+
+        // インターバル(準備)状態を管理するフラグ
+        let isPrepPhase = false; 
+
+        // Web Audio API シンセ（効果音用）
+        let audioCtx = null;
+
+        // SVG円周
+        const circleRadius = 88;
+        const circleCircumference = 2 * Math.PI * circleRadius;
+
+        // --- DOM要素 (初期化時に一括で取得するように変更) ---
+        let timerScreen;
+        let historyScreen;
+        let configScreen;
+        
+        let tabTimer;
+        let tabHistory;
+        let tabSettings;
+        
+        let themeToggleBtn;
+
+        let currentProgramName;
+        let stepCounter;
+        let stepInstruction;
+        let stepTip;
+        let timerRing;
+        let timeLeftDisplay;
+        let timerUnit;
+        let prepBadge;
+        let overallProgress;
+
+        let btnPlayPause;
+        let playIcon;
+        let btnReset;
+        let btnSkip;
+
+        let soundToggleBtn;
+        let soundStatusText;
+        let doneCountDisplay;
+        let totalCaloriesDisplay;
+
+        let programSelectBtns;
+        let prepSelectBtns;
+        let reminderBtns;
+
+        let toastNotification;
+        let toastCloseBtn;
+
+        let tipHeader;
+        let tipIconContainer;
+        
+        let weekCaloriesMini;
+        let weekCaloriesText;
+        let monthCaloriesText;
+        let historyList;
+        let chartContainer;
+        let btnClearHistory;
+
+        let reminderIntervalId = null;
+
+        // --- 初期設定 ---
+        function initApp() {
+            // DOM要素を一括取得 (DOMツリー構築完了後に確実に取得するため)
+            timerScreen = document.getElementById('timerScreen');
+            historyScreen = document.getElementById('historyScreen');
+            configScreen = document.getElementById('configScreen');
+            
+            tabTimer = document.getElementById('tabTimer');
+            tabHistory = document.getElementById('tabHistory');
+            tabSettings = document.getElementById('tabSettings');
+            
+            themeToggleBtn = document.getElementById('themeToggle');
+
+            currentProgramName = document.getElementById('currentProgramName');
+            stepCounter = document.getElementById('stepCounter');
+            stepInstruction = document.getElementById('stepInstruction');
+            stepTip = document.getElementById('stepTip');
+            timerRing = document.getElementById('timerRing');
+            timeLeftDisplay = document.getElementById('timeLeft');
+            timerUnit = document.getElementById('timerUnit');
+            prepBadge = document.getElementById('prepBadge');
+            overallProgress = document.getElementById('overallProgress');
+
+            btnPlayPause = document.getElementById('btnPlayPause');
+            playIcon = document.getElementById('playIcon');
+            btnReset = document.getElementById('btnReset');
+            btnSkip = document.getElementById('btnSkip');
+
+            soundToggleBtn = document.getElementById('soundToggle');
+            soundStatusText = document.getElementById('soundStatusText');
+            doneCountDisplay = document.getElementById('doneCount');
+            totalCaloriesDisplay = document.getElementById('totalCalories');
+
+            programSelectBtns = document.querySelectorAll('.program-select-btn');
+            prepSelectBtns = document.querySelectorAll('.prep-btn');
+            reminderBtns = document.querySelectorAll('.reminder-btn');
+
+            toastNotification = document.getElementById('toastNotification');
+            toastCloseBtn = document.getElementById('toastCloseBtn');
+
+            tipHeader = document.getElementById('tipHeader');
+            tipIconContainer = document.getElementById('tipIconContainer');
+            
+            weekCaloriesMini = document.getElementById('weekCaloriesMini');
+            weekCaloriesText = document.getElementById('weekCalories');
+            monthCaloriesText = document.getElementById('monthCalories');
+            historyList = document.getElementById('historyList');
+            chartContainer = document.getElementById('chartContainer');
+            btnClearHistory = document.getElementById('btnClearHistory');
+
+            // 安全のためのDOM取得チェック
+            if (!tabTimer || !tabHistory || !tabSettings || !themeToggleBtn || !btnPlayPause || !btnReset || !btnSkip) {
+                console.error("必要なDOM要素の取得に失敗しました。");
+                return;
+            }
+
+            lucide.createIcons();
+            setupIcons();
+            
+            // 1. ローカルストレージから永続化設定の読み込み
+            loadSavedSettings();
+
+            // 2. タブ切り替えのバインド
+            tabTimer.addEventListener('click', () => switchTab('timer'));
+            tabHistory.addEventListener('click', () => switchTab('history'));
+            tabSettings.addEventListener('click', () => switchTab('settings'));
+
+            // 3. 設定やテーマのリスナー登録
+            themeToggleBtn.addEventListener('click', toggleTheme);
+            btnPlayPause.addEventListener('click', handlePlayPause);
+            btnReset.addEventListener('click', handleReset);
+            btnSkip.addEventListener('click', handleSkip);
+            
+            if (soundToggleBtn) {
+                soundToggleBtn.addEventListener('click', toggleSound);
+            }
+            if (toastCloseBtn) {
+                toastCloseBtn.addEventListener('click', hideToast);
+            }
+            if (btnClearHistory) {
+                btnClearHistory.addEventListener('click', handleClearHistory);
+            }
+            
+            // 体重変更時にローカルストレージへ保存
+            const mainWeightInput = document.getElementById('userWeight');
+            if (mainWeightInput) {
+                mainWeightInput.addEventListener('change', (e) => {
+                    const val = parseFloat(e.target.value) || 60;
+                    localStorage.userWeight = val;
+                    userWeight = val;
+                    updateStatsUI(); // カロリー再集計
+                });
+            }
+
+            // プログラム選択イベント
+            programSelectBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const key = btn.currentTarget.dataset.program;
+                    selectProgram(key);
+                });
+            });
+
+            // インターバル（準備時間）選択イベント
+            prepSelectBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const seconds = parseInt(btn.dataset.prep);
+                    selectPrepDuration(seconds);
+                });
+            });
+
+            // リマインダー選択イベント
+            reminderBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const interval = parseInt(btn.dataset.interval);
+                    setupReminder(interval);
+                });
+            });
+
+            // 4. 初回ユーザーの体重入力を確認
+            checkFirstTimeUser();
+
+            // 5. 初回読み込み
+            loadProgram(currentProgramKey);
+            setupTheme();
+            updateStatsUI(); // 履歴グラフと数値を更新
+        }
+
+        function setupIcons() {
+            lucide.createIcons();
+        }
+
+        // --- 設定の記憶（LocalStorage）の読み込み ---
+        function loadSavedSettings() {
+            // 体重
+            if (localStorage.userWeight !== undefined) {
+                userWeight = parseFloat(localStorage.userWeight);
+                const weightInput = document.getElementById('userWeight');
+                if (weightInput) weightInput.value = userWeight;
+            }
+            // 準備時間
+            if (localStorage.prepDuration !== undefined) {
+                PREP_DURATION = parseInt(localStorage.prepDuration);
+            }
+            updatePrepBtnUI(PREP_DURATION);
+
+            // 効果音設定
+            if (localStorage.isSoundEnabled !== undefined) {
+                isSoundEnabled = localStorage.isSoundEnabled === 'true';
+            }
+            updateSoundBtnUI();
+
+            // リマインダー間隔
+            if (localStorage.activeReminderInterval !== undefined) {
+                activeReminderInterval = parseInt(localStorage.activeReminderInterval);
+            }
+            setupReminder(activeReminderInterval);
+
+            // 最後に動かしていたプログラムがあれば記憶
+            if (localStorage.currentProgramKey !== undefined) {
+                currentProgramKey = localStorage.currentProgramKey;
+            }
+        }
+
+        // --- 画面（タブ）切り替え制御 ---
+        function switchTab(tabName) {
+            // すべての画面を一度隠す
+            timerScreen.classList.add('hidden');
+            historyScreen.classList.add('hidden');
+            configScreen.classList.add('hidden');
+
+            // すべてのタブアイコンの色を非アクティブに
+            tabTimer.className = "flex flex-col items-center justify-center text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 w-12 h-12 transition-all";
+            tabHistory.className = "flex flex-col items-center justify-center text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 w-12 h-12 transition-all";
+            tabSettings.className = "flex flex-col items-center justify-center text-slate-400 hover:text-emerald-500 dark:hover:text-emerald-400 w-12 h-12 transition-all";
+
+            // 対象の画面を表示し、タブをアクティブにする
+            if (tabName === 'timer') {
+                timerScreen.classList.remove('hidden');
+                tabTimer.className = "flex flex-col items-center justify-center text-emerald-500 dark:text-emerald-400 w-12 h-12 transition-all";
+            } else if (tabName === 'history') {
+                historyScreen.classList.remove('hidden');
+                tabHistory.className = "flex flex-col items-center justify-center text-emerald-500 dark:text-emerald-400 w-12 h-12 transition-all";
+                updateStatsUI(); // 最新の履歴を読み込んでUIに反映
+            } else if (tabName === 'settings') {
+                configScreen.classList.remove('hidden');
+                tabSettings.className = "flex flex-col items-center justify-center text-emerald-500 dark:text-emerald-400 w-12 h-12 transition-all";
+            }
+            setupIcons();
+        }
+
+        // --- 初回ユーザーチェックと体重入力モーダル制御 ---
+        function checkFirstTimeUser() {
+            const welcomeModal = document.getElementById('welcomeModal');
+            const initWeightInput = document.getElementById('initWeightInput');
+            const btnSaveInitWeight = document.getElementById('btnSaveInitWeight');
+            const mainWeightInput = document.getElementById('userWeight');
+
+            if (localStorage.userWeight === undefined) {
+                if (welcomeModal) {
+                    welcomeModal.classList.remove('hidden');
+                    welcomeModal.classList.add('flex');
+                }
+                
+                if (btnSaveInitWeight) {
+                    btnSaveInitWeight.addEventListener('click', () => {
+                        const weightVal = parseFloat(initWeightInput.value) || 60;
+                        localStorage.userWeight = weightVal;
+                        userWeight = weightVal;
+                        if (mainWeightInput) mainWeightInput.value = weightVal; 
+                        
+                        if (welcomeModal) welcomeModal.classList.add('opacity-0');
+                        setTimeout(() => {
+                            if (welcomeModal) {
+                                welcomeModal.classList.add('hidden');
+                                welcomeModal.classList.remove('flex', 'opacity-0');
+                            }
+                            initAudioContext();
+                            playTone(880, 0.15);
+                            updateStatsUI(); // カロリー統計の再計算
+                        }, 300);
+                    });
+                }
+            } else {
+                if (welcomeModal) {
+                    welcomeModal.classList.add('hidden');
+                    welcomeModal.classList.remove('flex');
+                }
+                if (mainWeightInput) mainWeightInput.value = localStorage.userWeight;
+            }
+        }
+
+        // --- テーマ初期化・切り替え ---
+        function setupTheme() {
+            if (localStorage.theme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            }
+            setupIcons();
+        }
+
+        // --- 準備時間（インターバル）の設定と記憶 ---
+        function selectPrepDuration(seconds) {
+            PREP_DURATION = seconds;
+            localStorage.prepDuration = seconds;
+            updatePrepBtnUI(seconds);
+            
+            pause();
+            loadStep(currentStepIndex, true);
+        }
+
+        function updatePrepBtnUI(seconds) {
+            prepSelectBtns.forEach(btn => {
+                btn.className = "prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all";
+            });
+
+            const activeBtn = Array.from(prepSelectBtns).find(btn => parseInt(btn.dataset.prep) === seconds);
+            if (activeBtn) {
+                activeBtn.className = "prep-btn py-2 px-1 text-xs font-semibold rounded-lg border border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 transition-all font-bold";
+            }
+        }
+
+        // --- プログラム選択 ---
+        function loadProgram(key) {
+            currentProgramKey = key;
+            localStorage.currentProgramKey = key;
+            currentStepIndex = 0;
+            const program = programs[key];
+            currentProgramName.innerText = program.name;
+            loadStep(0, true); 
+        }
+
+        function selectProgram(key) {
+            programSelectBtns.forEach(btn => {
+                btn.className = "program-select-btn w-full p-3 rounded-2xl border border-slate-200 dark:border-slate-700 text-left transition-all hover:bg-slate-50 dark:hover:bg-slate-700";
+            });
+
+            const activeBtn = Array.from(programSelectBtns).find(btn => btn.dataset.program === key);
+            if (activeBtn) {
+                if (key === 'basic') {
+                    activeBtn.className = "program-select-btn w-full p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 text-left transition-all";
+                } else if (key === 'lowerAb') {
+                    activeBtn.className = "program-select-btn w-full p-3 rounded-2xl border-2 border-sky-500 bg-sky-50/50 dark:bg-sky-950/20 text-left transition-all";
+                } else {
+                    activeBtn.className = "program-select-btn w-full p-3 rounded-2xl border-2 border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 text-left transition-all";
+                }
+            }
+
+            pause();
+            loadProgram(key);
+            switchTab('timer'); // 選択完了したら自動でタイマー画面に戻す
+        }
+
+        // loadStep
+        function loadStep(index, startWithPrep = true) {
+            const steps = programs[currentProgramKey].steps;
+            if (index >= steps.length) {
+                completeProgram();
+                return;
+            }
+
+            currentStepIndex = index;
+            const step = steps[index];
+
+            // 姿勢チェック(最初のステップ)以外の全運動の前に「設定した準備時間」が0秒より大きい場合にインターバルを挟む
+            if (startWithPrep && index > 0 && PREP_DURATION > 0) {
+                isPrepPhase = true;
+                timeLeft = PREP_DURATION;
+                
+                // 次のプログラムの詳細説明を中央に大きくレイアウト
+                stepCounter.innerText = `${step.name} ： 準備中`;
+                stepInstruction.innerHTML = `
+                    <div class="flex flex-col items-center justify-center animate-fade-in text-center">
+                        <span class="text-amber-500 dark:text-amber-400 font-extrabold text-sm md:text-base tracking-wider uppercase block mb-1">💡 次の動きを準備しましょう</span>
+                        <h3 class="text-lg font-bold text-slate-800 dark:text-white mb-1">${step.title}</h3>
+                        <p class="text-xs font-normal text-slate-500 dark:text-slate-400 leading-relaxed max-w-xs mb-3">${step.text}</p>
+                        
+                        <!-- 準備スキップ用のクイック開始ボタン -->
+                        <button id="quickStartBtn" onclick="skipPrepAndStart()" class="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500 text-white font-bold text-xs rounded-full shadow-md shadow-amber-500/20 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 mx-auto">
+                            <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+                            <span>準備完了！今すぐ始める</span>
+                        </button>
+                    </div>
+                `;
+                
+                // 次のコツを下部にあらかじめ表示して読ませる
+                stepTip.innerText = step.tip;
+                
+                // ガイドデザインを変更
+                tipHeader.innerText = "次の動きのコツ（予習）";
+                tipHeader.className = "text-xs font-bold text-amber-500 dark:text-amber-400";
+                tipIconContainer.className = "text-amber-500 dark:text-amber-400 mt-0.5 shrink-0";
+                tipIconContainer.innerHTML = `<i data-lucide="help-circle" class="w-5 h-5"></i>`;
+                setupIcons();
+
+                prepBadge.classList.remove('hidden');
+                timerUnit.innerText = "PREPARING";
+                
+                // タイマーの色を黄色に変更
+                document.getElementById('gradientStart').setAttribute('stop-color', '#f59e0b');
+                document.getElementById('gradientEnd').setAttribute('stop-color', '#d97706');
+
+                updateTimerDisplay();
+                updateOverallProgressBar();
+            } else {
+                // 本番フェーズ、または最初の姿勢チェック（もしくはインターバルが0秒設定の場合）
+                isPrepPhase = false;
+                timeLeft = step.duration;
+
+                stepCounter.innerText = `${step.name} ： ${step.title}`;
+                stepInstruction.innerHTML = `
+                    <h2 class="text-xl font-bold text-slate-700 dark:text-slate-200 leading-snug">
+                        ${step.text}
+                    </h2>
+                `;
+                stepTip.innerText = step.tip;
+
+                // 通常デザインに戻す
+                tipHeader.innerText = "ポイント・コツ";
+                tipHeader.className = "text-xs font-bold text-slate-500 dark:text-slate-300";
+                tipIconContainer.className = "text-emerald-500 dark:text-emerald-400 mt-0.5 shrink-0";
+                tipIconContainer.innerHTML = `<i data-lucide="lightbulb" class="w-5 h-5"></i>`;
+                setupIcons();
+
+                prepBadge.classList.add('hidden');
+                timerUnit.innerText = "SECONDS";
+
+                // タイマーの色を本来のエメラルドに戻す
+                document.getElementById('gradientStart').setAttribute('stop-color', '#34d399');
+                document.getElementById('gradientEnd').setAttribute('stop-color', '#0d9488');
+
+                updateTimerDisplay();
+                updateOverallProgressBar();
+            }
+        }
+
+        // 準備時間中から即座に本番へスキップして運動をスタートするクイック関数
+        function skipPrepAndStart() {
+            if (!isPrepPhase) return;
+            initAudioContext();
+            playTone(1200, 0.15); // 開始効果音
+            loadStep(currentStepIndex, false); 
+            
+            if (isRunning) {
+                clearInterval(timerIntervalId);
+                timerIntervalId = setInterval(() => {
+                    timeLeft--;
+                    if (timeLeft < 0) {
+                        playTone(880, 0.1); 
+                        loadStep(currentStepIndex + 1, true);
+                    } else {
+                        if (timeLeft <= 3 && timeLeft > 0) {
+                            playTone(440, 0.05);
+                        }
+                        updateTimerDisplay();
+                    }
+                }, 1000);
+            }
+        }
+
+        function updateTimerDisplay() {
+            if (!timeLeftDisplay) return;
+            timeLeftDisplay.innerText = timeLeft;
+            
+            // サークルゲージの同期
+            const maxDuration = isPrepPhase ? PREP_DURATION : programs[currentProgramKey].steps[currentStepIndex].duration;
+            const percent = timeLeft / maxDuration;
+            const offset = circleCircumference - (percent * circleCircumference);
+            if (timerRing) timerRing.style.strokeDashoffset = offset;
+        }
+
+        function updateOverallProgressBar() {
+            const steps = programs[currentProgramKey].steps;
+            const total = steps.length;
+            
+            let progressIndex = currentStepIndex;
+            if (isPrepPhase) {
+                progressIndex -= 0.3; 
+            }
+            const percent = Math.max(0, (progressIndex / total) * 100);
+            if (overallProgress) overallProgress.style.width = `${percent}%`;
+        }
+
+        // --- タイマー操作ロジック ---
+        function handlePlayPause() {
+            initAudioContext();
+            if (isRunning) {
+                pause();
+            } else {
+                play();
+            }
+        }
+
+        function play() {
+            isRunning = true;
+            if (btnPlayPause) {
+                btnPlayPause.classList.add('bg-orange-500', 'from-orange-400', 'to-amber-500');
+                btnPlayPause.classList.remove('from-emerald-400', 'to-teal-500');
+                btnPlayPause.innerHTML = `<i id="playIcon" data-lucide="pause" class="w-10 h-10 fill-current text-white"></i>`;
+            }
+            setupIcons();
+
+            timerIntervalId = setInterval(() => {
+                timeLeft--;
+                if (timeLeft < 0) {
+                    if (isPrepPhase) {
+                        // 準備フェーズ終了、本番フェーズへ移行
+                        playTone(1200, 0.15); // 開始効果音
+                        loadStep(currentStepIndex, false); 
+                    } else {
+                        // 本番フェーズ終了、次のステップの準備フェーズへ
+                        playTone(880, 0.1); 
+                        loadStep(currentStepIndex + 1, true);
+                    }
+                } else {
+                    if (isPrepPhase) {
+                        // 準備中カウントダウン音
+                        playTone(400, 0.05); 
+                    } else if (timeLeft <= 3 && timeLeft > 0) {
+                        // 本番終了間際のカウントダウン音
+                        playTone(440, 0.05);
+                    }
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function pause() {
+            isRunning = false;
+            clearInterval(timerIntervalId);
+            if (btnPlayPause) {
+                btnPlayPause.classList.remove('bg-orange-500', 'from-orange-400', 'to-amber-500');
+                btnPlayPause.classList.add('from-emerald-400', 'to-teal-500');
+                btnPlayPause.innerHTML = `<i id="playIcon" data-lucide="play" class="w-10 h-10 fill-current text-white"></i>`;
+            }
+            setupIcons();
+        }
+
+        function handleReset() {
+            pause();
+            loadStep(0, true);
+        }
+
+        function handleSkip() {
+            pause();
+            playTone(660, 0.1);
+            if (isPrepPhase) {
+                // 準備をスキップ
+                loadStep(currentStepIndex, false);
+            } else {
+                // 本番をスキップ
+                loadStep(currentStepIndex + 1, true);
+            }
+        }
+
+        function completeProgram() {
+            pause();
+            
+            // ファンファーレ効果音
+            playTone(523.25, 0.1);
+            setTimeout(() => playTone(659.25, 0.1), 120);
+            setTimeout(() => playTone(783.99, 0.15), 240);
+            setTimeout(() => playTone(1046.50, 0.3), 360);
+
+            // 消費カロリー計算 (METs × 体重(kg) × 時間(時間) × 1.05)
+            const weight = parseFloat(document.getElementById('userWeight').value) || 60;
+            const metsMap = { basic: 3.0, lowerAb: 3.5, pelvic: 2.5 };
+            const mets = metsMap[currentProgramKey] || 3.0;
+            const steps = programs[currentProgramKey].steps;
+            const totalDuration = steps.reduce((sum, s) => sum + s.duration, 0); // 秒
+            const calories = parseFloat((weight * mets * (totalDuration / 3600) * 1.05).toFixed(1));
+
+            // ローカルストレージ履歴データに保存
+            saveWorkoutToHistory(currentProgramKey, programs[currentProgramKey].name, calories);
+
+            // 履歴とメインUIの即時更新
+            updateStatsUI();
+
+            stepCounter.innerText = "トレーニング完了！";
+            stepInstruction.innerHTML = `
+                <div class="text-center animate-fade-in">
+                    <h2 class="text-xl font-bold text-slate-700 dark:text-slate-200 leading-snug mb-3">
+                        お腹へこませメソッド完了です！<br>スッキリ爽快！
+                    </h2>
+                    <div class="inline-flex items-center gap-2 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/50 px-5 py-2.5 rounded-2xl">
+                        <i data-lucide="flame" class="w-5 h-5 text-orange-500 animate-pulse"></i>
+                        <span class="text-sm font-medium text-slate-600 dark:text-slate-300">今回の推定消費カロリー:</span>
+                        <span class="text-lg font-extrabold text-orange-600 dark:text-orange-400">${calories} <span class="text-xs">kcal</span></span>
+                    </div>
+                </div>
+            `;
+            stepTip.innerText = `素晴らしい取り組みです！体重 ${weight} kg として計算した消費カロリーを自動で記録しました。「履歴・統計」タブから進捗グラフを確認できます。このまま美しいデスクワーク姿勢を保ちましょう！`;
+            if (timeLeftDisplay) timeLeftDisplay.innerText = "完成";
+            if (timerRing) timerRing.style.strokeDashoffset = 0;
+            if (overallProgress) overallProgress.style.width = `100%`;
+
+            setupIcons();
+        }
+
+        // --- 履歴・統計処理 (LocalStorage連動) ---
+        function saveWorkoutToHistory(programKey, programName, calories) {
+            const history = getHistory();
+            const todayStr = getLocalDateString(new Date());
+
+            const newRecord = {
+                id: Date.now(),
+                date: todayStr,
+                program: programKey,
+                name: programName,
+                calories: calories
+            };
+
+            history.push(newRecord);
+            localStorage.abdominalWorkoutHistory = JSON.stringify(history);
+        }
+
+        function getHistory() {
+            if (localStorage.abdominalWorkoutHistory) {
+                try {
+                    return JSON.parse(localStorage.abdominalWorkoutHistory);
+                } catch (e) {
+                    return [];
+                }
+            }
+            return [];
+        }
+
+        function handleClearHistory() {
+            if (confirm("これまでの全運動履歴を消去してよろしいですか？\n(体重設定やタイマー設定は維持されます。)")) {
+                localStorage.abdominalWorkoutHistory = JSON.stringify([]);
+                updateStatsUI();
+                playTone(400, 0.15);
+            }
+        }
+
+        // YYYY-MM-DD 形式の現地日付を取得するヘルパー関数
+        function getLocalDateString(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 週・月のカロリー集計、直近7日グラフ、履歴リストの全UI描画
+        function updateStatsUI() {
+            const history = getHistory();
+            const todayStr = getLocalDateString(new Date());
+
+            // 1. 本日のスタッツ（タイマー画面下のフッター用）
+            const todayWorkouts = history.filter(item => item.date === todayStr);
+            const todayCount = todayWorkouts.length;
+            const todayCals = todayWorkouts.reduce((sum, item) => sum + item.calories, 0.0).toFixed(1);
+            
+            if (doneCountDisplay) doneCountDisplay.innerText = todayCount;
+            if (totalCaloriesDisplay) totalCaloriesDisplay.innerText = todayCals;
+
+            // 2. 週単位・月単位カロリー計算
+            const now = new Date();
+            const startOfWeek = new Date(now);
+            // 週の開始（月曜日とする）
+            const dayOfWeek = now.getDay();
+            const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            startOfWeek.setDate(now.getDate() + diffToMonday);
+            startOfWeek.setHours(0, 0, 0, 0);
+
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+            let weekCalsSum = 0.0;
+            let monthCalsSum = 0.0;
+
+            history.forEach(item => {
+                const itemDate = new Date(item.date);
+                if (itemDate >= startOfWeek) {
+                    weekCalsSum += item.calories;
+                }
+                if (itemDate >= startOfMonth) {
+                    monthCalsSum += item.calories;
+                }
+            });
+
+            if (weekCaloriesMini) weekCaloriesMini.innerText = weekCalsSum.toFixed(1);
+            if (weekCaloriesText) weekCaloriesText.innerText = weekCalsSum.toFixed(1);
+            if (monthCaloriesText) monthCaloriesText.innerText = monthCalsSum.toFixed(1);
+
+            // 3. 直近7日グラフ（HTML/CSSバー描画）
+            renderChart(history);
+
+            // 4. 履歴リストの描画
+            renderHistoryList(history);
+        }
+
+        // 直近7日間の縦棒グラフを描画
+        function renderChart(history) {
+            if (!chartContainer) return;
+            chartContainer.innerHTML = '';
+            const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+            const dayCards = [];
+
+            // 直近7日分の日付データ器を生成 (今日から逆算して6日前まで)
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dateStr = getLocalDateString(d);
+                const dayLabel = weekdays[d.getDay()];
+                const displayDate = `${d.getMonth() + 1}/${d.getDate()}`;
+                
+                // その日の総消費カロリーを合算
+                const dayCals = history
+                    .filter(item => item.date === dateStr)
+                    .reduce((sum, item) => sum + item.calories, 0.0);
+
+                dayCards.push({ dateLabel: displayDate, dayLabel: dayLabel, calories: dayCals });
+            }
+
+            // 最大カロリー値を基準に高さをパーセント算出（最低基準10kcal）
+            const maxCals = Math.max(...dayCards.map(c => c.calories), 10.0);
+
+            dayCards.forEach(card => {
+                const heightPercent = (card.calories / maxCals) * 100;
+                // 今日かどうかでバーの色を変えて視認性を上げる
+                const isToday = card.dateLabel === `${new Date().getMonth() + 1}/${new Date().getDate()}`;
+                const barColorClass = isToday 
+                    ? "bg-gradient-to-t from-teal-600 to-emerald-400 dark:from-teal-500 dark:to-emerald-400" 
+                    : "bg-slate-300 dark:bg-slate-600 hover:bg-emerald-400 transition-colors";
+
+                const barHtml = `
+                    <div class="flex flex-col items-center flex-1 h-full justify-end group cursor-pointer relative">
+                        <!-- ホバー時の値ポップアップ -->
+                        <span class="absolute -top-6 text-[10px] font-extrabold text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">${card.calories.toFixed(1)}</span>
+                        
+                        <!-- 棒 -->
+                        <div class="w-4 rounded-t-full ${barColorClass}" style="height: ${Math.max(4, heightPercent)}%"></div>
+                        
+                        <!-- ラベル -->
+                        <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-2">${card.dayLabel}</span>
+                        <span class="text-[8px] text-slate-300 dark:text-slate-600">${card.dateLabel}</span>
+                    </div>
+                `;
+                chartContainer.innerHTML += barHtml;
+            });
+        }
+
+        // 過去のトレーニングログをタイムラインリスト化
+        function renderHistoryList(history) {
+            if (!historyList) return;
+            historyList.innerHTML = '';
+            
+            if (history.length === 0) {
+                historyList.innerHTML = `<p class="text-xs text-slate-400 dark:text-slate-500 text-center py-4">運動履歴がまだありません。まずはタイマーをスタートしましょう！</p>`;
+                return;
+            }
+
+            // 直近が上に来るようにリバースして描画 (最大30件まで表示)
+            const recentHistory = [...history].reverse().slice(0, 30);
+
+            recentHistory.forEach(item => {
+                const dateObj = new Date(item.date);
+                const dateStr = `${dateObj.getMonth() + 1}月${dateObj.getDate()}日`;
+                
+                // プログラムに応じたアイコン色
+                let iconColor = "text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40";
+                if (item.program === 'lowerAb') iconColor = "text-sky-500 bg-sky-50 dark:bg-sky-950/40";
+                if (item.program === 'pelvic') iconColor = "text-purple-500 bg-purple-50 dark:bg-purple-950/40";
+
+                const logHtml = `
+                    <div class="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-700/40 border border-slate-100 dark:border-slate-700/50 rounded-xl">
+                        <div class="flex items-center gap-2.5">
+                            <div class="p-1.5 rounded-lg ${iconColor}">
+                                <i data-lucide="dumbbell" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs font-bold text-slate-700 dark:text-slate-200">${item.name}</p>
+                                <p class="text-[10px] text-slate-400">${dateStr}</p>
+                            </div>
+                        </div>
+                        <span class="text-xs font-extrabold text-orange-500 dark:text-orange-400">+${item.calories.toFixed(1)} kcal</span>
+                    </div>
+                `;
+                historyList.innerHTML += logHtml;
+            });
+            setupIcons();
+        }
+
+        // --- 効果音の記憶とトグル（ON / OFF） ---
+        function toggleSound() {
+            isSoundEnabled = !isSoundEnabled;
+            localStorage.isSoundEnabled = isSoundEnabled;
+            updateSoundBtnUI();
+            
+            if (isSoundEnabled) {
+                initAudioContext();
+                playTone(600, 0.05);
+            }
+        }
+
+        function updateSoundBtnUI() {
+            const onIcon = document.getElementById('soundOnIcon');
+            const offIcon = document.getElementById('soundOffIcon');
+            const soundStatusText = document.getElementById('soundStatusText');
+
+            if (isSoundEnabled) {
+                if (onIcon) {
+                    onIcon.classList.remove('hidden');
+                    onIcon.classList.add('inline-block');
+                }
+                if (offIcon) {
+                    offIcon.classList.add('hidden');
+                    offIcon.classList.remove('inline-block');
+                }
+                if (soundStatusText) soundStatusText.innerText = "ON";
+            } else {
+                if (onIcon) {
+                    onIcon.classList.add('hidden');
+                    onIcon.classList.remove('inline-block');
+                }
+                if (offIcon) {
+                    offIcon.classList.remove('hidden');
+                    offIcon.classList.add('inline-block');
+                }
+                if (soundStatusText) soundStatusText.innerText = "OFF";
+            }
+        }
+
+        // --- Web Audio API (効果音発生) ---
+        function initAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playTone(freq, duration) {
+            // 効果音がOFF、またはオーディオが初期化されていない場合は無音
+            if (!isSoundEnabled || !audioCtx) return;
+            try {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                
+                gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.log("Audio play failed", e);
+            }
+        }
+
+        // --- リマインダー管理と記憶 ---
+        function setupReminder(minutes) {
+            activeReminderInterval = minutes;
+            localStorage.activeReminderInterval = minutes;
+
+            reminderBtns.forEach(btn => {
+                btn.className = "reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700";
+            });
+
+            const activeBtn = Array.from(reminderBtns).find(btn => parseInt(btn.dataset.interval) === minutes);
+            if (activeBtn) {
+                if (minutes === 0) {
+                    activeBtn.className = "reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-slate-400 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200";
+                } else {
+                    activeBtn.className = "reminder-btn py-2 px-1 text-xs font-semibold rounded-lg border border-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400";
+                }
+            }
+
+            if (reminderIntervalId) clearInterval(reminderIntervalId);
+            
+            if (minutes > 0) {
+                const milliseconds = minutes * 60 * 1000;
+                reminderIntervalId = setInterval(() => {
+                    triggerReminder();
+                }, milliseconds);
+            }
+        }
+
+        function triggerReminder() {
+            showToast();
+            initAudioContext();
+            playTone(880, 0.15);
+            setTimeout(() => playTone(880, 0.15), 200);
+        }
+
+        function showToast() {
+            if (!toastNotification) return;
+            toastNotification.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
+            toastNotification.classList.add('opacity-100', 'translate-y-0');
+            setTimeout(hideToast, 8000);
+        }
+
+        function hideToast() {
+            if (!toastNotification) return;
+            toastNotification.classList.add('opacity-0', 'pointer-events-none', 'translate-y-[-20px]');
+            toastNotification.classList.remove('opacity-100', 'translate-y-0');
+        }
+
+        window.onload = function() {
+            initApp();
+        };
+    </script>
+</body>
+</html>
