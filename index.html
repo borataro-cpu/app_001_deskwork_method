@@ -546,7 +546,7 @@
             // プログラム選択イベント
             programSelectBtns.forEach(btn => {
                 btn.addEventListener('click', (e) => {
-                    const key = btn.currentTarget.dataset.program;
+                    const key = btn.dataset.program; // 誤っていた btn.currentTarget から修正しました
                     selectProgram(key);
                 });
             });
@@ -1015,6 +1015,7 @@
             localStorage.abdominalWorkoutHistory = JSON.stringify(history);
         }
 
+        // 過去ログ読み込み
         function getHistory() {
             if (localStorage.abdominalWorkoutHistory) {
                 try {
@@ -1034,7 +1035,7 @@
             }
         }
 
-        // YYYY-MM-DD 形式の現地日付を取得するヘルパー関数
+        // YYYY-MM-DD 形式の現地日付を取得するヘルパー
         function getLocalDateString(date) {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
